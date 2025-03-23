@@ -285,7 +285,7 @@ func (bs *BoothScraper) fetchItemDetail(
 	item.ScrapeAt = time.Now()
 	item.PageNum = summaryItem.PageNum
 
-	log.Println("Successfully finished scraping detail: ", item.Url)
+	log.Printf("Successfully finished scraping detail, url: %s, pageNum: %d\n", item.Url, item.PageNum)
 	itemChannel <- item
 }
 
