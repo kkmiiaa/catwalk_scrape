@@ -9,9 +9,11 @@ import (
 func main() {
 	boothScraper := scraper.NewBoothScraper(
 		"https://booth.pm/ja/browse/3D%E3%83%A2%E3%83%87%E3%83%AB",
-		3027,
-		"booth_details.csv",
+		2,  // start page num
+		10, // end page num
+		"booth_items.csv",
 		"failed_list.csv",
+		true,
 		false,
 	)
 

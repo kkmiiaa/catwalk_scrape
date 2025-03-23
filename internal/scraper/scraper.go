@@ -20,26 +20,32 @@ import (
 )
 
 type BoothScraper struct {
-	BoothTargetUrl string
-	MaxPage        int
-	OutputCSVFile  string
-	FailedListFile string
-	allowUpdate    bool
+	BoothTargetUrl  string
+	StartPage       int
+	EndPage         int
+	OutputCSVFile   string
+	FailedListFile  string
+	AllowAppendLast bool
+	AllowRowUpdate  bool // TODO
 }
 
 func NewBoothScraper(
 	url string,
-	maxPage int,
+	startPage int,
+	endPage int,
 	outputCsvFile string,
 	failedListFile string,
-	allowUpdate bool,
+	AllowAppendLast bool,
+	allowRowUpdate bool,
 ) *BoothScraper {
 	return &BoothScraper{
-		BoothTargetUrl: url,
-		MaxPage:        maxPage,
-		OutputCSVFile:  outputCsvFile,
-		FailedListFile: failedListFile,
-		allowUpdate:    allowUpdate,
+		BoothTargetUrl:  url,
+		StartPage:       startPage,
+		EndPage:         endPage,
+		OutputCSVFile:   outputCsvFile,
+		FailedListFile:  failedListFile,
+		AllowAppendLast: AllowAppendLast,
+		AllowRowUpdate:  allowRowUpdate,
 	}
 }
 
@@ -94,7 +100,7 @@ func (bs *BoothScraper) scrapeBoothList(
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	for pageNum := 1; pageNum <= bs.MaxPage; pageNum++ {
+	for pageNum := bs.StartPage; pageNum <= bs.EndPage; pageNum++ {
 		<-ticker.C
 		processChan <- struct{}{}
 
@@ -126,8 +132,9 @@ func fetchItemsFromBoothSearchResult(
 		"li.item-card .item-card__wrap .item-card__summary .item-card__title a",
 		func(e *colly.HTMLElement) {
 			item := BoothSummaryItem{
-				Title: e.Text,
-				Url:   e.Attr("href"),
+				Title:   e.Text,
+				Url:     e.Attr("href"),
+				PageNum: pageNum,
 			}
 
 			results = append(results, item)
@@ -173,10 +180,10 @@ func (bs *BoothScraper) scrapeAndSaveBoothItemDetails(
 		processChan <- struct{}{}
 		fetchWg.Add(1)
 
-		go func(idx int, url string) {
+		go func(idx int, summaryItem BoothSummaryItem) {
 			defer func() { <-processChan }()
-			bs.fetchItemDetail(allocCtx, url, &fetchWg, itemChannel, failedWriter)
-		}(i, item.Url)
+			bs.fetchItemDetail(allocCtx, summaryItem, &fetchWg, itemChannel, failedWriter)
+		}(i, item)
 	}
 
 	fetchWg.Wait()
@@ -188,7 +195,7 @@ func (bs *BoothScraper) scrapeAndSaveBoothItemDetails(
 
 func (bs *BoothScraper) fetchItemDetail(
 	ctx context.Context,
-	url string,
+	summaryItem BoothSummaryItem,
 	wg *sync.WaitGroup,
 	itemChannel chan<- BoothDetailItem,
 	failedWriter *csv.Writer,
@@ -201,15 +208,15 @@ func (bs *BoothScraper) fetchItemDetail(
 	var wholeHtml string
 	err := chromedp.Run(
 		ctx,
-		chromedp.Navigate(url),
+		chromedp.Navigate(summaryItem.Url),
 		chromedp.WaitReady("body"),
 		chromedp.Sleep(500*time.Millisecond),
 		chromedp.OuterHTML("html", &wholeHtml, chromedp.ByQuery),
 	)
 	if err != nil {
 		log.Printf("Failed to run chromedp: %v", err)
-		if err := failedWriter.Write([]string{url}); err != nil {
-			log.Println("=========== Failed to save record to csv. url: ", url)
+		if err := failedWriter.Write([]string{summaryItem.Url}); err != nil {
+			log.Println("=========== Failed to save record to csv. url: ", summaryItem.Url)
 			return
 		}
 		return
@@ -218,8 +225,8 @@ func (bs *BoothScraper) fetchItemDetail(
 	dom, err := goquery.NewDocumentFromReader(strings.NewReader(wholeHtml))
 	if err != nil {
 		log.Printf("Failed to run chromedp: %v", err)
-		if err := failedWriter.Write([]string{url}); err != nil {
-			log.Println("=========== Failed to save record to csv. url: ", url)
+		if err := failedWriter.Write([]string{summaryItem.Url}); err != nil {
+			log.Println("=========== Failed to save record to csv. url: ", summaryItem.Url)
 			return
 		}
 		return
@@ -230,7 +237,7 @@ func (bs *BoothScraper) fetchItemDetail(
 	jst, _ := time.LoadLocation("Asia/Tokyo")
 
 	item.Title = dom.Find("header > h2").Text()
-	item.Url = url
+	item.Url = summaryItem.Url
 
 	item.CreatorName = dom.Find(".my-16 header div.flex a.grid span").Text()
 	item.CreatorUrl = dom.Find(".my-16 header div.flex a.grid").AttrOr("href", "")
@@ -276,6 +283,7 @@ func (bs *BoothScraper) fetchItemDetail(
 	item.PictureCount = dom.Find(".slick-list > .slick-track > .slick-slide:not(.slick-cloned) > div > a > div > img").Length()
 
 	item.ScrapeAt = time.Now()
+	item.PageNum = summaryItem.PageNum
 
 	log.Println("Successfully finished scraping detail: ", item.Url)
 	itemChannel <- item
@@ -285,20 +293,30 @@ func (bs *BoothScraper) initOutputFile(
 	ctx context.Context,
 	filename string,
 ) (*os.File, *csv.Writer, error) {
-	file, err := os.Create("output/" + filename)
+	path := "output/" + filename
+	var file *os.File
+	var err error
+
+	if bs.AllowAppendLast {
+		file, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	} else {
+		file, err = os.Create(path)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
 	writer := csv.NewWriter(file)
 
-	header := []string{
-		"Title", "Url", "CreatorName", "CreatorUrl", "JpyPrice",
-		"PublishedAt", "SalesStartAt", "Description", "DescriptionWordCount",
-		"Tags", "FavoriteCount", "PictureCount", "ScrapeAt",
-	}
+	if !bs.AllowAppendLast {
+		header := []string{
+			"Title", "Url", "CreatorName", "CreatorUrl", "JpyPrice",
+			"PublishedAt", "SalesStartAt", "Description", "DescriptionWordCount",
+			"Tags", "FavoriteCount", "PictureCount", "PageNum", "ScrapeAt",
+		}
 
-	if err := writer.Write(header); err != nil {
-		return nil, nil, err
+		if err := writer.Write(header); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return file, writer, nil
@@ -355,6 +373,7 @@ func (bs *BoothScraper) saveRecordToCSV(
 			string(tagsJson),
 			strconv.Itoa(item.FavoriteCount),
 			strconv.Itoa(item.PictureCount),
+			strconv.Itoa(item.PageNum),
 			item.ScrapeAt.Format(time.RFC3339),
 		}
 

@@ -18,8 +18,9 @@ type BoothSummaryResultPage struct {
 }
 
 type BoothSummaryItem struct {
-	Title string
-	Url   string
+	Title   string
+	Url     string
+	PageNum int
 }
 
 type BoothDetailItem struct {
@@ -43,6 +44,7 @@ type BoothDetailItem struct {
 	PictureCount  int
 
 	ScrapeAt time.Time
+	PageNum  int
 }
 
 type BoothItemPriceOption struct {
