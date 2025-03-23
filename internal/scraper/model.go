@@ -2,11 +2,10 @@ package scraper
 
 import (
 	"regexp"
-
-	"github.com/gocolly/colly"
+	"time"
 )
 
-type PageHandler func(*colly.Collector, string) ([]string, error)
+type PageHandler func(string) ([]string, error)
 
 type ScrapeRule struct {
 	Pattern *regexp.Regexp
@@ -21,4 +20,32 @@ type BoothSummaryResultPage struct {
 type BoothSummaryItem struct {
 	Title string
 	Url   string
+}
+
+type BoothDetailItem struct {
+	Title string
+	Url   string
+
+	CreatorName string
+	CreatorUrl  string
+
+	PriceOptions []BoothItemPriceOption
+
+	PublishedAt  time.Time
+	SalesStartAt time.Time
+
+	Description          string
+	DescriptionWordCount int
+
+	Tags []string
+
+	FavoriteCount int
+	PictureCount  int
+
+	ScrapeAt time.Time
+}
+
+type BoothItemPriceOption struct {
+	Title    string
+	JpyPrice string
 }

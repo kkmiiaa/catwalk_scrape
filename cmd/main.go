@@ -2,16 +2,21 @@ package main
 
 import (
 	"catwalk_scrape/internal/scraper"
+	"context"
 	"log"
 )
 
 func main() {
-	url := "https://booth.pm/ja/browse/3D%E3%83%A2%E3%83%87%E3%83%AB"
+	boothScraper := scraper.NewBoothScraper(
+		"https://booth.pm/ja/browse/3D%E3%83%A2%E3%83%87%E3%83%AB",
+		3027,
+		"booth_details.csv",
+		"failed_list.csv",
+		false,
+	)
 
-	data, err := scraper.Scrape(url)
+	err := boothScraper.DoProcess(context.Background())
 	if err != nil {
-		log.Fatalf("failed to scrape: %v", err)
+		log.Fatalf("Failed to process: %v", err)
 	}
-
-	log.Println("succesfully", data)
 }
