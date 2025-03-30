@@ -29,23 +29,27 @@ type BoothScraper struct {
 	AllowRowUpdate  bool // TODO
 }
 
+type BoothScraperOptions struct {
+	BoothTargetUrl  string
+	StartPage       int
+	EndPage         int
+	OutputCSVFile   string
+	FailedListFile  string
+	AllowAppendLast bool
+	AllowRowUpdate  bool
+}
+
 func NewBoothScraper(
-	url string,
-	startPage int,
-	endPage int,
-	outputCsvFile string,
-	failedListFile string,
-	AllowAppendLast bool,
-	allowRowUpdate bool,
+	opts *BoothScraperOptions,
 ) *BoothScraper {
 	return &BoothScraper{
-		BoothTargetUrl:  url,
-		StartPage:       startPage,
-		EndPage:         endPage,
-		OutputCSVFile:   outputCsvFile,
-		FailedListFile:  failedListFile,
-		AllowAppendLast: AllowAppendLast,
-		AllowRowUpdate:  allowRowUpdate,
+		BoothTargetUrl:  opts.BoothTargetUrl,
+		StartPage:       opts.StartPage,
+		EndPage:         opts.EndPage,
+		OutputCSVFile:   opts.OutputCSVFile,
+		FailedListFile:  opts.FailedListFile,
+		AllowAppendLast: opts.AllowAppendLast,
+		AllowRowUpdate:  opts.AllowRowUpdate,
 	}
 }
 
@@ -162,11 +166,21 @@ func (bs *BoothScraper) scrapeAndSaveBoothItemDetails(
 	ticker := time.NewTicker(330 * time.Millisecond)
 	defer ticker.Stop()
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Headless)
+	opts := append(
+		chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("blink-settings", "imagesEnabled=false"), // 画像読み込み禁止
+		chromedp.Flag("disable-extensions", true),
+		chromedp.Flag("disable-sync", true),
+		chromedp.Flag("disable-background-networking", true),
+		chromedp.Flag("disable-default-apps", true),
+	)
+	// opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Headless)
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 
-	processChan := make(chan struct{}, 10)
+	processChan := make(chan struct{}, 30)
 
 	itemChannel := make(chan BoothDetailItem, 100)
 	var csvWg sync.WaitGroup

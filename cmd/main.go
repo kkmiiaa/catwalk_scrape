@@ -8,13 +8,15 @@ import (
 
 func main() {
 	boothScraper := scraper.NewBoothScraper(
-		"https://booth.pm/ja/browse/3D%E3%83%A2%E3%83%87%E3%83%AB",
-		2,  // start page num
-		10, // end page num
-		"booth_items.csv",
-		"failed_list.csv",
-		true,
-		false,
+		&scraper.BoothScraperOptions{
+			BoothTargetUrl:  "https://booth.pm/ja/browse/3D%E3%83%A2%E3%83%87%E3%83%AB",
+			StartPage:       1,
+			EndPage:         10,
+			OutputCSVFile:   "booth_items.csv",
+			FailedListFile:  "failed_list.csv",
+			AllowAppendLast: true,
+			AllowRowUpdate:  false, // NOTE: 未実装
+		},
 	)
 
 	err := boothScraper.DoProcess(context.Background())
