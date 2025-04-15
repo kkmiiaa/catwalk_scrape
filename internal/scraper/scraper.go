@@ -253,6 +253,18 @@ func (bs *BoothScraper) fetchItemDetail(
 	item.Title = dom.Find("header > h2").Text()
 	item.Url = summaryItem.Url
 
+	categoryString := ""
+	dom.Find("#js-item-category-breadcrumbs a.no-underline").Each(
+		func(index int, s *goquery.Selection) {
+			if index == 0 {
+				categoryString += s.Text()
+			} else {
+				categoryString += " > " + s.Text()
+			}
+		},
+	)
+	item.Category = categoryString
+
 	item.CreatorName = dom.Find(".my-16 header div.flex a.grid span").Text()
 	item.CreatorUrl = dom.Find(".my-16 header div.flex a.grid").AttrOr("href", "")
 
@@ -323,7 +335,7 @@ func (bs *BoothScraper) initOutputFile(
 
 	if !bs.AllowAppendLast {
 		header := []string{
-			"Title", "Url", "CreatorName", "CreatorUrl", "JpyPrice",
+			"Title", "Url", "Category", "CreatorName", "CreatorUrl", "JpyPrice",
 			"PublishedAt", "SalesStartAt", "Description", "DescriptionWordCount",
 			"Tags", "FavoriteCount", "PictureCount", "PageNum", "ScrapeAt",
 		}
@@ -377,6 +389,7 @@ func (bs *BoothScraper) saveRecordToCSV(
 		record := []string{
 			item.Title,
 			item.Url,
+			item.Category,
 			item.CreatorName,
 			item.CreatorUrl,
 			string(priceOptionsJson),

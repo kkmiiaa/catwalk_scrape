@@ -27,6 +27,8 @@ type BoothDetailItem struct {
 	Title string
 	Url   string
 
+	Category string
+
 	CreatorName string
 	CreatorUrl  string
 
