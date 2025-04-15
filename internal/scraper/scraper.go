@@ -175,12 +175,13 @@ func (bs *BoothScraper) scrapeAndSaveBoothItemDetails(
 		chromedp.Flag("disable-sync", true),
 		chromedp.Flag("disable-background-networking", true),
 		chromedp.Flag("disable-default-apps", true),
+		// chromedp.UserAgent("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"),
 	)
 	// opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Headless)
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 
-	processChan := make(chan struct{}, 30)
+	processChan := make(chan struct{}, 10)
 
 	itemChannel := make(chan BoothDetailItem, 100)
 	var csvWg sync.WaitGroup
